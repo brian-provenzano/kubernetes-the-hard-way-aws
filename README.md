@@ -1,5 +1,7 @@
 # Kubernetes The Hard Way - AWS
 
+Forked: Added aws-li-create-infra.sh (Brian Provenzano)
+
 This page is based on [Kubernetes The Hard
 Way](https://github.com/kelseyhightower/kubernetes-the-hard-way/) guide. It
 compiles AWS CLI commands, mainly from revision
