@@ -22,7 +22,6 @@ SECURITY_GROUP_ID=""
 LOAD_BALANCER_ARN=""
 TARGET_GROUP_ARN=""
 KUBERNETES_PUBLIC_ADDRESS=""
-
 IMAGE_ID=""
 
 echo "This script will create k8s cluster on AWS using 'kubernetes-the-hard-way' tutorial..."
@@ -133,7 +132,7 @@ select yn in "Yes" "No"; do
 && aws elbv2 register-targets \
   --target-group-arn ${TARGET_GROUP_ARN} \
   --targets Id=10.240.0.1{0,1,2} \
-&& ALB_LISTENER_ARN= $(aws elbv2 create-listener \
+&& ALB_LISTENER_ARN=$(aws elbv2 create-listener \
   --load-balancer-arn ${LOAD_BALANCER_ARN} \
   --protocol TCP \
   --port 6443 \
@@ -148,7 +147,6 @@ done
 
 echo "Networking Created! "
 echo "Details ---> \n"
-echo "K8s public address: $KUBERNETES_PUBLIC_ADDRESS"
 aws ec2 describe-vpcs --vpc-ids ${VPC_ID}
 aws ec2 describe-subnets --subnet-ids ${SUBNET_ID}
 aws ec2 describe-internet-gateways --internet-gateway-ids ${INTERNET_GATEWAY_ID}
@@ -156,6 +154,7 @@ aws ec2 describe-route-tables --route-table-ids ${ROUTE_TABLE_ID}
 aws ec2 describe-security-groups --group-ids ${SECURITY_GROUP_ID}
 aws elbv2 describe-load-balancers --load-balancer-arns ${LOAD_BALANCER_ARN}
 aws elbv2 describe-listeners --load-balancer-arn ${LOAD_BALANCER_ARN}
+echo -e "----\nK8s public address: ${KUBERNETES_PUBLIC_ADDRESS} \n----"
 
 echo "Create Compute?"
 select yn in "Yes" "No"; do
@@ -172,7 +171,7 @@ select yn in "Yes" "No"; do
   > ssh/kubernetes.id_rsa \
 && chmod 600 ssh/kubernetes.id_rsa \
 && for i in 0 1 2; do
-  instance_id=$(aws ec2 run-instances \
+  INSTANCE_ID=$(aws ec2 run-instances \
     --associate-public-ip-address \
     --image-id ${IMAGE_ID} \
     --count 1 \
@@ -182,16 +181,16 @@ select yn in "Yes" "No"; do
     --private-ip-address 10.240.0.1${i} \
     --user-data "name=controller-${i}" \
     --subnet-id ${SUBNET_ID} \
-    --output text --query 'Instances[].InstanceId') \
+    --output text --query 'Instances[].InstanceId')
   aws ec2 modify-instance-attribute \
-    --instance-id ${instance_id} \
+    --instance-id ${INSTANCE_ID} \
     --no-source-dest-check
   aws ec2 create-tags \
-    --resources ${instance_id} \
-    --tags "Key=Name,Value=controller-${i}" \
+    --resources ${INSTANCE_ID} \
+    --tags "Key=Name,Value=controller-${i}"
 done \
 && for i in 0 1 2; do
-  instance_id=$(aws ec2 run-instances \
+  INSTANCE_ID=$(aws ec2 run-instances \
     --associate-public-ip-address \
     --image-id ${IMAGE_ID} \
     --count 1 \
@@ -203,10 +202,10 @@ done \
     --subnet-id ${SUBNET_ID} \
     --output text --query 'Instances[].InstanceId')
   aws ec2 modify-instance-attribute \
-    --instance-id ${instance_id} \
+    --instance-id ${INSTANCE_ID} \
     --no-source-dest-check
   aws ec2 create-tags \
-    --resources ${instance_id} \
+    --resources ${INSTANCE_ID} \
     --tags "Key=Name,Value=worker-${i}"
 done; 
 break;;
@@ -214,15 +213,12 @@ break;;
     esac
 done
 
-#########################################-----------UNTESTED
-
-
-#Provisioning a CA and Generating TLS certificates
-echo "Create / Provision CA and generate TLS certificates?"
-select yn in "Yes" "No"; do
-    case $yn in
-        Yes ) mkdir -p tls \
-&& cat > tls/ca-config.json <<EOF
+# Provisioning a CA and Generating TLS certificates
+echo "Create / Provision CA and generate TLS certificates..."
+mkdir -p tls
+#Certificate Authority
+echo "Certificate Authority..."
+cat > tls/ca-config.json <<EOF
 {
   "signing": {
     "default": {
@@ -236,8 +232,8 @@ select yn in "Yes" "No"; do
     }
   }
 }
-EOF \
-&& cat > tls/ca-csr.json <<EOF
+EOF
+cat > tls/ca-csr.json <<EOF
 {
   "CN": "Kubernetes",
   "key": {
@@ -254,9 +250,12 @@ EOF \
     }
   ]
 }
-EOF \
-&& cfssl gencert -initca tls/ca-csr.json | cfssljson -bare tls/ca \
-&& cat > tls/admin-csr.json <<EOF
+EOF
+cfssl gencert -initca tls/ca-csr.json | cfssljson -bare tls/ca
+
+# Admin Client Certificate
+echo "Gen the Admin Client Certificate..."
+cat > tls/admin-csr.json <<EOF
 {
   "CN": "admin",
   "key": {
@@ -273,14 +272,17 @@ EOF \
     }
   ]
 }
-EOF \
-&& cfssl gencert \
+EOF
+cfssl gencert \
   -ca=tls/ca.pem \
   -ca-key=tls/ca-key.pem \
   -config=tls/ca-config.json \
   -profile=kubernetes \
-  tls/admin-csr.json | cfssljson -bare tls/admin \
-&& for i in 0 1 2; do
+  tls/admin-csr.json | cfssljson -bare tls/admin
+
+# Kubelet Client Certificates
+echo "Gen the Kubelet Client Certificates..."
+for i in 0 1 2; do
   instance="worker-${i}"
   instance_hostname="ip-10-240-0-2${i}"
   cat > tls/${instance}-csr.json <<EOF
@@ -301,7 +303,6 @@ EOF \
   ]
 }
 EOF
-
   external_ip=$(aws ec2 describe-instances \
     --filters "Name=tag:Name,Values=${instance}" \
     --output text --query 'Reservations[].Instances[].PublicIpAddress')
@@ -317,8 +318,11 @@ EOF
     -hostname=${instance_hostname},${external_ip},${internal_ip} \
     -profile=kubernetes \
     tls/worker-${i}-csr.json | cfssljson -bare tls/worker-${i}
-done \
-&& cat > tls/kube-proxy-csr.json <<EOF
+done
+
+#kube-proxy Client Certificate
+echo "Gen the kube-proxy Client Certificate..."
+cat > tls/kube-proxy-csr.json <<EOF
 {
   "CN": "system:kube-proxy",
   "key": {
@@ -335,14 +339,17 @@ done \
     }
   ]
 }
-EOF \
-&& cfssl gencert \
+EOF
+cfssl gencert \
   -ca=tls/ca.pem \
   -ca-key=tls/ca-key.pem \
   -config=tls/ca-config.json \
   -profile=kubernetes \
-  tls/kube-proxy-csr.json | cfssljson -bare tls/kube-proxy \
-&& cat > tls/kubernetes-csr.json <<EOF
+  tls/kube-proxy-csr.json | cfssljson -bare tls/kube-proxy
+
+# Kubernetes API Server Certificate
+echo "Gen the K8s API Server Certificate..."
+cat > tls/kubernetes-csr.json <<EOF
 {
   "CN": "kubernetes",
   "key": {
@@ -359,33 +366,168 @@ EOF \
     }
   ]
 }
-EOF \
-&& cfssl gencert \
+EOF
+cfssl gencert \
   -ca=tls/ca.pem \
   -ca-key=tls/ca-key.pem \
   -config=tls/ca-config.json \
   -hostname=10.32.0.1,10.240.0.10,10.240.0.11,10.240.0.12,ip-10-240-0-10,ip-10-240-0-11,ip-10-240-0-12,${KUBERNETES_PUBLIC_ADDRESS},127.0.0.1,kubernetes.default \
   -profile=kubernetes \
-  tls/kubernetes-csr.json | cfssljson -bare tls/kubernetes \
-&& for instance in worker-0 worker-1 worker-2; do
+  tls/kubernetes-csr.json | cfssljson -bare tls/kubernetes
+
+#Distribute the Client and Server Certificates
+echo "Distribute the Client and Server Certificates..."
+for instance in worker-0 worker-1 worker-2; do
   external_ip=$(aws ec2 describe-instances \
     --filters "Name=tag:Name,Values=${instance}" \
     --output text --query 'Reservations[].Instances[].PublicIpAddress')
-  scp -i ssh/kubernetes.id_rsa \
+  scp -v -i ssh/kubernetes.id_rsa \
     tls/ca.pem tls/${instance}-key.pem tls/${instance}.pem \
     ubuntu@${external_ip}:~/
-done \
-&& for instance in controller-0 controller-1 controller-2; do
+done 
+for instance in controller-0 controller-1 controller-2; do
   external_ip=$(aws ec2 describe-instances \
     --filters "Name=tag:Name,Values=${instance}" \
     --output text --query 'Reservations[].Instances[].PublicIpAddress')
-  scp -i ssh/kubernetes.id_rsa \
+  scp -v -i ssh/kubernetes.id_rsa \
     tls/ca.pem tls/ca-key.pem tls/kubernetes-key.pem tls/kubernetes.pem \
     ubuntu@${external_ip}:~/
-done; 
-break;;
+done
+
+# Generating Kubernetes Authentication Files for Authentication
+echo "Generating Kubernetes Authentication Files for Authentication..."
+echo -e "----\nCurrent K8s Public IP Address: ${KUBERNETES_PUBLIC_ADDRESS} \n----"
+# The kubelet Kubernetes Configuration Files
+echo "The kubelet Kubernetes Configuration Files..."
+mkdir -p cfg
+for i in 0 1 2; do
+  instance="worker-${i}"
+  instance_hostname="ip-10-240-0-2${i}"
+  kubectl config set-cluster kubernetes-the-hard-way \
+    --certificate-authority=tls/ca.pem \
+    --embed-certs=true \
+    --server=https://${KUBERNETES_PUBLIC_ADDRESS}:6443 \
+    --kubeconfig=cfg/${instance}.kubeconfig
+
+  kubectl config set-credentials system:node:${instance_hostname} \
+    --client-certificate=tls/${instance}.pem \
+    --client-key=tls/${instance}-key.pem \
+    --embed-certs=true \
+    --kubeconfig=cfg/${instance}.kubeconfig
+
+  kubectl config set-context default \
+    --cluster=kubernetes-the-hard-way \
+    --user=system:node:${instance_hostname} \
+    --kubeconfig=cfg/${instance}.kubeconfig
+
+  kubectl config use-context default \
+    --kubeconfig=cfg/${instance}.kubeconfig
+done
+
+#The kube-proxy Kubernetes Configuration File
+echo "The kube-proxy Kubernetes Configuration File..."
+kubectl config set-cluster kubernetes-the-hard-way \
+  --certificate-authority=tls/ca.pem \
+  --embed-certs=true \
+  --server=https://${KUBERNETES_PUBLIC_ADDRESS}:6443 \
+  --kubeconfig=cfg/kube-proxy.kubeconfig
+kubectl config set-credentials kube-proxy \
+  --client-certificate=tls/kube-proxy.pem \
+  --client-key=tls/kube-proxy-key.pem \
+  --embed-certs=true \
+  --kubeconfig=cfg/kube-proxy.kubeconfig
+kubectl config set-context default \
+  --cluster=kubernetes-the-hard-way \
+  --user=kube-proxy \
+  --kubeconfig=cfg/kube-proxy.kubeconfig
+kubectl config use-context default \
+  --kubeconfig=cfg/kube-proxy.kubeconfig
+
+#Distribute the Kubernetes Configuration Files
+echo "Distribute the Kubernetes Configuration Files to the instances..."
+for instance in worker-0 worker-1 worker-2; do
+  external_ip=$(aws ec2 describe-instances \
+    --filters "Name=tag:Name,Values=${instance}" \
+    --output text --query 'Reservations[].Instances[].PublicIpAddress')
+  scp -v -i ssh/kubernetes.id_rsa \
+    cfg/${instance}.kubeconfig cfg/kube-proxy.kubeconfig \
+    ubuntu@${external_ip}:~/
+done
+
+#Generating the Data Encryption Config and Key
+echo "Generating the Data Encryption Config and Key..."
+ENCRYPTION_KEY=$(head -c 32 /dev/urandom | base64)
+cat > cfg/encryption-config.yaml <<EOF
+kind: EncryptionConfig
+apiVersion: v1
+resources:
+  - resources:
+      - secrets
+    providers:
+      - aescbc:
+          keys:
+            - name: key1
+              secret: ${ENCRYPTION_KEY}
+      - identity: {}
+EOF
+for instance in controller-0 controller-1 controller-2; do
+  external_ip=$(aws ec2 describe-instances \
+    --filters "Name=tag:Name,Values=${instance}" \
+    --output text --query 'Reservations[].Instances[].PublicIpAddress')
+  scp -i ssh/kubernetes.id_rsa cfg/encryption-config.yaml ubuntu@${external_ip}:~/
+done
+
+#DONE - rest is manual labor :)
+echo "-----------------------------------------------------"
+echo "Continue tutorial at 'Bootstrapping the etcd Cluster' - rest is manual bootstrap and config of the cluster"
+echo "-----------------------------------------------------"
+
+
+
+#CLEANUP ---------------
+echo "K8s Cluster up and running ... when you are ready to cleanup continue as noted"
+echo "Cleanup/ Destoy all AWS resources in use?"
+select yn in "Yes" "No"; do
+    case $yn in
+        Yes ) aws ec2 terminate-instances \
+  --instance-ids \
+    $(aws ec2 describe-instances \
+      --filter "Name=tag:Name,Values=controller-0,controller-1,controller-2,worker-0,worker-1,worker-2" \
+      --output text --query 'Reservations[].Instances[].InstanceId') \
+&& aws ec2 delete-key-pair \
+  --key-name kubernetes \
+&& aws elbv2 delete-load-balancer \
+  --load-balancer-arn "${LOAD_BALANCER_ARN}" \
+&& aws elbv2 delete-target-group \
+  --target-group-arn "${TARGET_GROUP_ARN}" \
+&& aws ec2 delete-security-group \
+  --group-id "${SECURITY_GROUP_ID}" \
+&& ROUTE_TABLE_ASSOCIATION_ID="$(aws ec2 describe-route-tables \
+  --route-table-ids "${ROUTE_TABLE_ID}" \
+  --output text --query 'RouteTables[].Associations[].RouteTableAssociationId')" \
+&& aws ec2 disassociate-route-table \
+  --association-id "${ROUTE_TABLE_ASSOCIATION_ID}" \
+&& aws ec2 delete-route-table \
+  --route-table-id "${ROUTE_TABLE_ID}" \
+&& aws ec2 detach-internet-gateway \
+  --internet-gateway-id "${INTERNET_GATEWAY_ID}" \
+  --vpc-id "${VPC_ID}" \
+&& aws ec2 delete-internet-gateway \
+  --internet-gateway-id "${INTERNET_GATEWAY_ID}" \
+&& aws ec2 delete-subnet \
+  --subnet-id "${SUBNET_ID}" \
+&& aws ec2 delete-dhcp-options \
+  --dhcp-options-id "${DHCP_OPTION_SET_ID}" \
+&& aws ec2 delete-vpc \
+  --vpc-id "${VPC_ID}"; break;;
         No ) exit;;
     esac
 done
 
-###########################################################----
+echo "Cleanup ssh/tls/cfg directories as well?"
+select yn in "Yes" "No"; do
+    case $yn in
+        Yes ) rm -fr tls && rm -fr ssh; break;;
+        No ) exit;;
+    esac
+done
