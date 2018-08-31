@@ -486,7 +486,7 @@ echo "-----------------------------------------------------"
 
 #CLEANUP ---------------
 echo "K8s Cluster up and running ... when you are ready to cleanup continue as noted"
-echo "Cleanup/ Destoy all AWS resources in use?"
+echo "Cleanup/ Destroy all AWS resources in use?"
 select yn in "Yes" "No"; do
     case $yn in
         Yes ) aws ec2 terminate-instances \
@@ -500,8 +500,6 @@ select yn in "Yes" "No"; do
   --load-balancer-arn "${LOAD_BALANCER_ARN}" \
 && aws elbv2 delete-target-group \
   --target-group-arn "${TARGET_GROUP_ARN}" \
-&& aws ec2 delete-security-group \
-  --group-id "${SECURITY_GROUP_ID}" \
 && ROUTE_TABLE_ASSOCIATION_ID="$(aws ec2 describe-route-tables \
   --route-table-ids "${ROUTE_TABLE_ID}" \
   --output text --query 'RouteTables[].Associations[].RouteTableAssociationId')" \
@@ -519,7 +517,10 @@ select yn in "Yes" "No"; do
 && aws ec2 delete-dhcp-options \
   --dhcp-options-id "${DHCP_OPTION_SET_ID}" \
 && aws ec2 delete-vpc \
-  --vpc-id "${VPC_ID}"; break;;
+  --vpc-id "${VPC_ID}" \
+&& sleep 20 \
+&& aws ec2 delete-security-group \
+  --group-id "${SECURITY_GROUP_ID}"; break;;
         No ) exit;;
     esac
 done
@@ -527,7 +528,7 @@ done
 echo "Cleanup ssh/tls/cfg directories as well?"
 select yn in "Yes" "No"; do
     case $yn in
-        Yes ) rm -fr tls && rm -fr ssh; break;;
+        Yes ) rm -fr tls && rm -fr ssh && rm -fr cfg; break;;
         No ) exit;;
     esac
 done
