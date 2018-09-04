@@ -214,6 +214,8 @@ break;;
 done
 
 # Provisioning a CA and Generating TLS certificates
+echo "Sleep/wait until instances are started..."
+sleep 60
 echo "Create / Provision CA and generate TLS certificates..."
 mkdir -p tls
 #Certificate Authority
@@ -381,7 +383,7 @@ for instance in worker-0 worker-1 worker-2; do
   external_ip=$(aws ec2 describe-instances \
     --filters "Name=tag:Name,Values=${instance}" \
     --output text --query 'Reservations[].Instances[].PublicIpAddress')
-  scp -v -i ssh/kubernetes.id_rsa \
+  scp -v -o StrictHostkeyChecking=no -o UserKnownHostsFile=/dev/null -i ssh/kubernetes.id_rsa \
     tls/ca.pem tls/${instance}-key.pem tls/${instance}.pem \
     ubuntu@${external_ip}:~/
 done 
@@ -389,7 +391,7 @@ for instance in controller-0 controller-1 controller-2; do
   external_ip=$(aws ec2 describe-instances \
     --filters "Name=tag:Name,Values=${instance}" \
     --output text --query 'Reservations[].Instances[].PublicIpAddress')
-  scp -v -i ssh/kubernetes.id_rsa \
+  scp -v -o StrictHostkeyChecking=no -o UserKnownHostsFile=/dev/null-i ssh/kubernetes.id_rsa \
     tls/ca.pem tls/ca-key.pem tls/kubernetes-key.pem tls/kubernetes.pem \
     ubuntu@${external_ip}:~/
 done
@@ -449,7 +451,7 @@ for instance in worker-0 worker-1 worker-2; do
   external_ip=$(aws ec2 describe-instances \
     --filters "Name=tag:Name,Values=${instance}" \
     --output text --query 'Reservations[].Instances[].PublicIpAddress')
-  scp -v -i ssh/kubernetes.id_rsa \
+  scp -v -o StrictHostkeyChecking=no -o UserKnownHostsFile=/dev/null -i ssh/kubernetes.id_rsa \
     cfg/${instance}.kubeconfig cfg/kube-proxy.kubeconfig \
     ubuntu@${external_ip}:~/
 done
@@ -474,7 +476,7 @@ for instance in controller-0 controller-1 controller-2; do
   external_ip=$(aws ec2 describe-instances \
     --filters "Name=tag:Name,Values=${instance}" \
     --output text --query 'Reservations[].Instances[].PublicIpAddress')
-  scp -i ssh/kubernetes.id_rsa cfg/encryption-config.yaml ubuntu@${external_ip}:~/
+  scp -v -o StrictHostkeyChecking=no -o UserKnownHostsFile=/dev/null -i ssh/kubernetes.id_rsa cfg/encryption-config.yaml ubuntu@${external_ip}:~/
 done
 
 #DONE - rest is manual labor :)
@@ -507,6 +509,7 @@ select yn in "Yes" "No"; do
   --association-id "${ROUTE_TABLE_ASSOCIATION_ID}" \
 && aws ec2 delete-route-table \
   --route-table-id "${ROUTE_TABLE_ID}" \
+&& echo "sleeping 1 min to let LB dissassociate before detaching IGW..." && sleep 60 \
 && aws ec2 detach-internet-gateway \
   --internet-gateway-id "${INTERNET_GATEWAY_ID}" \
   --vpc-id "${VPC_ID}" \
@@ -518,9 +521,8 @@ select yn in "Yes" "No"; do
   --dhcp-options-id "${DHCP_OPTION_SET_ID}" \
 && aws ec2 delete-vpc \
   --vpc-id "${VPC_ID}" \
-&& sleep 20 \
 && aws ec2 delete-security-group \
-  --group-id "${SECURITY_GROUP_ID}"; break;;
+  --group-id "${SECURITY_GROUP_ID}" && printenv; break;;
         No ) exit;;
     esac
 done
