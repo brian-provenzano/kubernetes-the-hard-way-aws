@@ -517,10 +517,11 @@ select yn in "Yes" "No"; do
   --internet-gateway-id "${INTERNET_GATEWAY_ID}" \
 && aws ec2 delete-subnet \
   --subnet-id "${SUBNET_ID}" \
-&& aws ec2 delete-dhcp-options \
-  --dhcp-options-id "${DHCP_OPTION_SET_ID}" \
 && aws ec2 delete-vpc \
   --vpc-id "${VPC_ID}" \
+&& sleep 20 \
+&& aws ec2 delete-dhcp-options \
+  --dhcp-options-id "${DHCP_OPTION_SET_ID}" \
 && aws ec2 delete-security-group \
   --group-id "${SECURITY_GROUP_ID}" && printenv; break;;
         No ) exit;;
