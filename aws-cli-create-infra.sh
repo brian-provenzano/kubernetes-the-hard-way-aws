@@ -188,6 +188,9 @@ select yn in "Yes" "No"; do
   aws ec2 create-tags \
     --resources ${INSTANCE_ID} \
     --tags "Key=Name,Value=controller-${i}"
+  aws ec2 create-tags \
+    --resources ${INSTANCE_ID} \
+    --tags "Key=K8S,Value=controller"
 done \
 && for i in 0 1 2; do
   INSTANCE_ID=$(aws ec2 run-instances \
@@ -207,6 +210,9 @@ done \
   aws ec2 create-tags \
     --resources ${INSTANCE_ID} \
     --tags "Key=Name,Value=worker-${i}"
+  aws ec2 create-tags \
+    --resources ${INSTANCE_ID} \
+    --tags "Key=K8S,Value=worker"
 done; 
 break;;
         No ) exit;;
