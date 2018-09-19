@@ -320,7 +320,7 @@ Resources:
       GroupId: !Ref sg-kubernetes
       IpProtocol: '-1'
       CidrIp: 0.0.0.0/0
-#manually created BJP
+
   elbv2-kubernetes:
     Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
     Properties:
