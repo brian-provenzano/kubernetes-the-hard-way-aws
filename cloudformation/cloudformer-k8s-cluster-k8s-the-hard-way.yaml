@@ -1,6 +1,18 @@
 AWSTemplateFormatVersion: 2010-09-09
+
+Parameters: 
+  ControllerName: 
+    Type: String
+    Default: controller
+    Description: Enter a name for the k8s controller nodes (will create 3 nodes)
+  WorkerName: 
+    Type: String
+    Default: worker
+    Description: Enter a name for the k8s worker nodes (will create 3 nodes)
+
+
 Resources:
-  vpc-kubernetes:
+  VPCKubernetes:
     Type: 'AWS::EC2::VPC'
     Properties:
       CidrBlock: 10.240.0.0/24
@@ -11,24 +23,24 @@ Resources:
         - Key: Name
           Value: kubernetes-the-hard-way
 
-  subnet-kubernetes:
+  SubnetKubernetes:
     Type: 'AWS::EC2::Subnet'
     Properties:
       CidrBlock: 10.240.0.0/24
       AvailabilityZone: us-west-2b
-      VpcId: !Ref vpc-kubernetes
+      VpcId: !Ref VPCKubernetes
       Tags:
         - Key: Name
           Value: kubernetes-the-hard-way
 
-  igw-kubernetes:
+  IGWKubernetes:
     Type: 'AWS::EC2::InternetGateway'
     Properties:
       Tags:
         - Key: Name
           Value: kubernetes-the-hard-way
 
-  dhcpoptions-kubernetes:
+  DHCPOptionsKubernetes:
     Type: 'AWS::EC2::DHCPOptions'
     Properties:
       Tags:
@@ -38,25 +50,25 @@ Resources:
       DomainNameServers:
         - AmazonProvidedDNS
 
-  networkacl-kubernetes:
+  NetworkACLSKubernetes:
     Type: 'AWS::EC2::NetworkAcl'
     Properties:
-      VpcId: !Ref vpc-kubernetes
+      VpcId: !Ref VPCKubernetes
 
   rtb03991342d16a5382a:
     Type: 'AWS::EC2::RouteTable'
     Properties:
-      VpcId: !Ref vpc-kubernetes
+      VpcId: !Ref VPCKubernetes
 
   rtb0be5f5ee8d3d442de:
     Type: 'AWS::EC2::RouteTable'
     Properties:
-      VpcId: !Ref vpc-kubernetes
+      VpcId: !Ref VPCKubernetes
       Tags:
         - Key: Name
           Value: kubernetes-the-hard-way
 
-  controller-1-instance:
+  ControllerOneInstance:
     Type: 'AWS::EC2::Instance'
     Properties:
       DisableApiTermination: 'false'
@@ -67,20 +79,20 @@ Resources:
       Monitoring: 'false'
       Tags:
         - Key: K8S
-          Value: controller
+          Value: !Ref ControllerName
         - Key: Name
-          Value: controller-1
+          Value: !Join [ "-", [ !Ref ControllerName, 1] ]
       NetworkInterfaces:
         - DeleteOnTermination: 'true'
           DeviceIndex: 0
-          SubnetId: !Ref subnet-kubernetes
+          SubnetId: !Ref SubnetKubernetes
           PrivateIpAddresses:
             - PrivateIpAddress: 10.240.0.11
               Primary: 'true'
           GroupSet:
-            - !Ref sg-kubernetes
+            - !Ref SGKubernetes
 
-  worker-2-instance:
+  WorkerTwoInstance:
     Type: 'AWS::EC2::Instance'
     Properties:
       DisableApiTermination: 'false'
@@ -91,20 +103,20 @@ Resources:
       Monitoring: 'false'
       Tags:
         - Key: Name
-          Value: worker-2
+          Value: !Join [ "-", [ !Ref WorkerName, 2] ]
         - Key: K8S
-          Value: worker
+          Value: !Ref WorkerName
       NetworkInterfaces:
         - DeleteOnTermination: 'true'
           DeviceIndex: 0
-          SubnetId: !Ref subnet-kubernetes
+          SubnetId: !Ref SubnetKubernetes
           PrivateIpAddresses:
             - PrivateIpAddress: 10.240.0.22
               Primary: 'true'
           GroupSet:
-            - !Ref sg-kubernetes
+            - !Ref SGKubernetes
 
-  controller-2-instance:
+  ControllerTwoInstance:
     Type: 'AWS::EC2::Instance'
     Properties:
       DisableApiTermination: 'false'
@@ -115,20 +127,20 @@ Resources:
       Monitoring: 'false'
       Tags:
         - Key: K8S
-          Value: controller
+          Value: !Ref ControllerName
         - Key: Name
-          Value: controller-2
+          Value: !Join [ "-", [ !Ref ControllerName, 2] ]
       NetworkInterfaces:
         - DeleteOnTermination: 'true'
           DeviceIndex: 0
-          SubnetId: !Ref subnet-kubernetes
+          SubnetId: !Ref SubnetKubernetes
           PrivateIpAddresses:
             - PrivateIpAddress: 10.240.0.12
               Primary: 'true'
           GroupSet:
-            - !Ref sg-kubernetes
+            - !Ref SGKubernetes
 
-  worker-0-instance:
+  WorkerZeroInstance:
     Type: 'AWS::EC2::Instance'
     Properties:
       DisableApiTermination: 'false'
@@ -139,20 +151,20 @@ Resources:
       Monitoring: 'false'
       Tags:
         - Key: Name
-          Value: worker-0
+          Value: !Join [ "-", [ !Ref WorkerName, 0] ]
         - Key: K8S
-          Value: worker
+          Value: !Ref WorkerName
       NetworkInterfaces:
         - DeleteOnTermination: 'true'
           DeviceIndex: 0
-          SubnetId: !Ref subnet-kubernetes
+          SubnetId: !Ref SubnetKubernetes
           PrivateIpAddresses:
             - PrivateIpAddress: 10.240.0.20
               Primary: 'true'
           GroupSet:
-            - !Ref sg-kubernetes
+            - !Ref SGKubernetes
 
-  controller-0-instance:
+  ControllerZeroInstance:
     Type: 'AWS::EC2::Instance'
     Properties:
       DisableApiTermination: 'false'
@@ -163,20 +175,20 @@ Resources:
       Monitoring: 'false'
       Tags:
         - Key: K8S
-          Value: controller
+          Value: !Ref ControllerName
         - Key: Name
-          Value: controller-0
+          Value: !Join [ "-", [ !Ref ControllerName, 0] ]
       NetworkInterfaces:
         - DeleteOnTermination: 'true'
           DeviceIndex: 0
-          SubnetId: !Ref subnet-kubernetes
+          SubnetId: !Ref SubnetKubernetes
           PrivateIpAddresses:
             - PrivateIpAddress: 10.240.0.10
               Primary: 'true'
           GroupSet:
-            - !Ref sg-kubernetes
+            - !Ref SGKubernetes
 
-  worker-1-instance:
+  WorkerOneInstance:
     Type: 'AWS::EC2::Instance'
     Properties:
       DisableApiTermination: 'false'
@@ -187,24 +199,24 @@ Resources:
       Monitoring: 'false'
       Tags:
         - Key: Name
-          Value: worker-1
+          Value: !Join [ "-", [ !Ref WorkerName, 1] ]
         - Key: K8S
-          Value: worker
+          Value: !Ref WorkerName
       NetworkInterfaces:
         - DeleteOnTermination: 'true'
           DeviceIndex: 0
-          SubnetId: !Ref subnet-kubernetes
+          SubnetId: !Ref SubnetKubernetes
           PrivateIpAddresses:
             - PrivateIpAddress: 10.240.0.21
               Primary: 'true'
           GroupSet:
-            - !Ref sg-kubernetes
+            - !Ref SGKubernetes
 
-  sg-kubernetes:
+  SGKubernetes:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
       GroupDescription: Kubernetes security group
-      VpcId: !Ref vpc-kubernetes
+      VpcId: !Ref VPCKubernetes
       Tags:
         - Key: Name
           Value: kubernetes-the-hard-way
@@ -216,7 +228,7 @@ Resources:
       Protocol: '-1'
       RuleAction: allow
       RuleNumber: '100'
-      NetworkAclId: !Ref networkacl-kubernetes
+      NetworkAclId: !Ref NetworkACLSKubernetes
   acl2:
     Type: 'AWS::EC2::NetworkAclEntry'
     Properties:
@@ -224,56 +236,56 @@ Resources:
       Protocol: '-1'
       RuleAction: allow
       RuleNumber: '100'
-      NetworkAclId: !Ref networkacl-kubernetes
+      NetworkAclId: !Ref NetworkACLSKubernetes
   subnetacl1:
     Type: 'AWS::EC2::SubnetNetworkAclAssociation'
     Properties:
-      NetworkAclId: !Ref networkacl-kubernetes
-      SubnetId: !Ref subnet-kubernetes
-  gateway-attach-kubernetes:
+      NetworkAclId: !Ref NetworkACLSKubernetes
+      SubnetId: !Ref SubnetKubernetes
+  GatewayAttachKubernetes:
     Type: 'AWS::EC2::VPCGatewayAttachment'
     Properties:
-      VpcId: !Ref vpc-kubernetes
-      InternetGatewayId: !Ref igw-kubernetes
+      VpcId: !Ref VPCKubernetes
+      InternetGatewayId: !Ref IGWKubernetes
   subnetroute2:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
     Properties:
       RouteTableId: !Ref rtb0be5f5ee8d3d442de
-      SubnetId: !Ref subnet-kubernetes
+      SubnetId: !Ref SubnetKubernetes
   route1:
     Type: 'AWS::EC2::Route'
     Properties:
       DestinationCidrBlock: 10.200.0.0/24
       RouteTableId: !Ref rtb0be5f5ee8d3d442de
-      InstanceId: !Ref worker-0-instance
+      InstanceId: !Ref WorkerZeroInstance
   route2:
     Type: 'AWS::EC2::Route'
     Properties:
       DestinationCidrBlock: 10.200.1.0/24
       RouteTableId: !Ref rtb0be5f5ee8d3d442de
-      InstanceId: !Ref worker-1-instance
+      InstanceId: !Ref WorkerOneInstance
   route3:
     Type: 'AWS::EC2::Route'
     Properties:
       DestinationCidrBlock: 10.200.2.0/24
       RouteTableId: !Ref rtb0be5f5ee8d3d442de
-      InstanceId: !Ref worker-2-instance
+      InstanceId: !Ref WorkerTwoInstance
   route4:
     Type: 'AWS::EC2::Route'
     Properties:
       DestinationCidrBlock: 0.0.0.0/0
       RouteTableId: !Ref rtb0be5f5ee8d3d442de
-      GatewayId: !Ref igw-kubernetes
-    DependsOn: gateway-attach-kubernetes
-  vpc-dhcpoptions-association-kubernetes:
+      GatewayId: !Ref IGWKubernetes
+    DependsOn: GatewayAttachKubernetes
+  VPCDHCPOptionsAssocKubernetes:
     Type: 'AWS::EC2::VPCDHCPOptionsAssociation'
     Properties:
-      VpcId: !Ref vpc-kubernetes
-      DhcpOptionsId: !Ref dhcpoptions-kubernetes
+      VpcId: !Ref VPCKubernetes
+      DhcpOptionsId: !Ref DHCPOptionsKubernetes
   ingress1:
     Type: 'AWS::EC2::SecurityGroupIngress'
     Properties:
-      GroupId: !Ref sg-kubernetes
+      GroupId: !Ref SGKubernetes
       IpProtocol: tcp
       FromPort: '6443'
       ToPort: '6443'
@@ -281,19 +293,19 @@ Resources:
   ingress2:
     Type: 'AWS::EC2::SecurityGroupIngress'
     Properties:
-      GroupId: !Ref sg-kubernetes
+      GroupId: !Ref SGKubernetes
       IpProtocol: '-1'
       CidrIp: 10.240.0.0/24
   ingress3:
     Type: 'AWS::EC2::SecurityGroupIngress'
     Properties:
-      GroupId: !Ref sg-kubernetes
+      GroupId: !Ref SGKubernetes
       IpProtocol: '-1'
       CidrIp: 10.200.0.0/16
   ingress4:
     Type: 'AWS::EC2::SecurityGroupIngress'
     Properties:
-      GroupId: !Ref sg-kubernetes
+      GroupId: !Ref SGKubernetes
       IpProtocol: tcp
       FromPort: '22'
       ToPort: '22'
@@ -301,7 +313,7 @@ Resources:
   ingress5:
     Type: 'AWS::EC2::SecurityGroupIngress'
     Properties:
-      GroupId: !Ref sg-kubernetes
+      GroupId: !Ref SGKubernetes
       IpProtocol: tcp
       FromPort: '30754'
       ToPort: '30754'
@@ -309,7 +321,7 @@ Resources:
   ingress6:
     Type: 'AWS::EC2::SecurityGroupIngress'
     Properties:
-      GroupId: !Ref sg-kubernetes
+      GroupId: !Ref SGKubernetes
       IpProtocol: icmp
       FromPort: '-1'
       ToPort: '-1'
@@ -317,39 +329,39 @@ Resources:
   egress1:
     Type: 'AWS::EC2::SecurityGroupEgress'
     Properties:
-      GroupId: !Ref sg-kubernetes
+      GroupId: !Ref SGKubernetes
       IpProtocol: '-1'
       CidrIp: 0.0.0.0/0
 
-  elbv2-kubernetes:
+  ELBV2Kubernetes:
     Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
     Properties:
       Name: kubernetes
-      Subnets: !Ref subnet-kubernetes
+      Subnets: !Ref SubnetKubernetes
       Scheme: internet-facing
       Type: network
       Tags:
         - Key: Name
           Value: kubernetes-the-hard-way
-  elbv2-targetgroup-kubernetes:
-    Type: ' AWS::ElasticLoadBalancingV2::TargetGroup'
+  ELBV2TargetGroupKubernetes:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
     Properties:
       Name: kubernetes
       Port: 6443
       Protocol: TCP
-      VpcId: !Ref vpc-kubernetes
+      VpcId: !Ref VPCKubernetes
       TargetType: ip
       Targets:
-        - Id: !Ref controller-0-instance
-        - Id: !Ref controller-2-instance
-        - Id: !Ref controller-1-instance
-  elbv2-listener-kubernetes:
+        - Id: !Ref ControllerZeroInstance
+        - Id: !Ref ControllerTwoInstance
+        - Id: !Ref ControllerOneInstance
+  ELBV2ListenerKubernetes:
     Type: 'AWS::ElasticLoadBalancingV2::Listener'
     Properties:
-      LoadBalancerArn: !Ref elbv2-kubernetes
+      LoadBalancerArn: !Ref ELBV2Kubernetes
       Protocol: TCP
       Port: 6443
       DefaultActions:
         - Type: forward
-          TargetGroupArn: !Ref elbv2-targetgroup-kubernetes
+          TargetGroupArn: !Ref ELBV2TargetGroupKubernetes
 Description: K8s cluster stack from existing infra - created kubernetes-the-hard-way
