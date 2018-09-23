@@ -1,21 +1,62 @@
 AWSTemplateFormatVersion: 2010-09-09
+Description: K8s cluster stack from existing infra - created kubernetes-the-hard-way
+# Note defaults for most items are for region us-west-2
 
-Parameters: 
+Mappings: 
+  RegionAMIMap: 
+    us-west-1:
+      "Ubuntu1604": ""
+      "Ubuntu1804": ""
+      "AmazonLinux2": ""
+    us-west-2:
+      "Ubuntu1604": "ami-0e32ec5bc225539f5"
+      "Ubuntu1804": "ami-0bbe6b35405ecebdb"
+      "AmazonLinux2": "ami-6cd6f714"
+
+Parameters:
   ControllerName: 
     Type: String
     Default: controller
     Description: Enter a name for the k8s controller nodes (will create 3 nodes)
+  ControllerAMI: 
+    Type: String
+    Default: ""
+    Description: Enter an AMI to use for the controller instances 
+
   WorkerName: 
     Type: String
     Default: worker
     Description: Enter a name for the k8s worker nodes (will create 3 nodes)
+  WorkerAMI: 
+    Type: String
+    Default: ""
+    Description: Enter an AMI to use for the worker instances
 
+  VPCCIDR:
+    Type: String
+    Default: 10.240.0.0/24
+    Description: Enter a CIDR for the K8s custom VPC
+  SubnetCIDR:
+    Type: String
+    Default: 10.240.0.0/24
+    Description: Enter a CIDR for the K8s custom subnet in the VPC
+  SubnetAZ:
+    Type: String
+    Default: ""
+    Description: Enter a AWS availability zone for the K8s custom subnet
+
+Conditions:
+  UseDefaultControllerAMI: !Equals [!Ref ControllerAMI, ""]
+  UseDefaultWorkerAMI: !Equals [!Ref WorkerAMI, ""]
+  UseDefaultSubnetAZ: !Equals [!Ref SubnetAZ, ""]
+
+#Transforms:
 
 Resources:
   VPCKubernetes:
     Type: 'AWS::EC2::VPC'
     Properties:
-      CidrBlock: 10.240.0.0/24
+      CidrBlock: !Ref VPCCIDR
       InstanceTenancy: default
       EnableDnsSupport: 'true'
       EnableDnsHostnames: 'true'
@@ -26,8 +67,8 @@ Resources:
   SubnetKubernetes:
     Type: 'AWS::EC2::Subnet'
     Properties:
-      CidrBlock: 10.240.0.0/24
-      AvailabilityZone: us-west-2b
+      CidrBlock: !Ref SubnetCIDR
+      AvailabilityZone: !If [UseDefaultSubnetAZ, !Select [0, !GetAZs ""], !Ref SubnetAZ]
       VpcId: !Ref VPCKubernetes
       Tags:
         - Key: Name
@@ -73,7 +114,7 @@ Resources:
     Properties:
       DisableApiTermination: 'false'
       InstanceInitiatedShutdownBehavior: stop
-      ImageId: ami-51537029
+      ImageId: !If [UseDefaultControllerAMI, !FindInMap [RegionAMIMap, !Ref "AWS::Region", Ubuntu1604], !Ref ControllerAMI]
       InstanceType: t2.micro
       KeyName: kubernetes
       Monitoring: 'false'
@@ -97,7 +138,7 @@ Resources:
     Properties:
       DisableApiTermination: 'false'
       InstanceInitiatedShutdownBehavior: stop
-      ImageId: ami-51537029
+      ImageId: !If [UseDefaultWorkerAMI, !FindInMap [RegionAMIMap, !Ref "AWS::Region", Ubuntu1604], !Ref WorkerAMI]
       InstanceType: t2.micro
       KeyName: kubernetes
       Monitoring: 'false'
@@ -121,7 +162,7 @@ Resources:
     Properties:
       DisableApiTermination: 'false'
       InstanceInitiatedShutdownBehavior: stop
-      ImageId: ami-51537029
+      ImageId: !If [UseDefaultControllerAMI, !FindInMap [RegionAMIMap, !Ref "AWS::Region", Ubuntu1604], !Ref ControllerAMI]
       InstanceType: t2.micro
       KeyName: kubernetes
       Monitoring: 'false'
@@ -145,7 +186,7 @@ Resources:
     Properties:
       DisableApiTermination: 'false'
       InstanceInitiatedShutdownBehavior: stop
-      ImageId: ami-51537029
+      ImageId: !If [UseDefaultWorkerAMI, !FindInMap [RegionAMIMap, !Ref "AWS::Region", Ubuntu1604], !Ref WorkerAMI]
       InstanceType: t2.micro
       KeyName: kubernetes
       Monitoring: 'false'
@@ -169,7 +210,7 @@ Resources:
     Properties:
       DisableApiTermination: 'false'
       InstanceInitiatedShutdownBehavior: stop
-      ImageId: ami-51537029
+      ImageId: !If [UseDefaultControllerAMI, !FindInMap [RegionAMIMap, !Ref "AWS::Region", Ubuntu1604], !Ref ControllerAMI]
       InstanceType: t2.micro
       KeyName: kubernetes
       Monitoring: 'false'
@@ -193,7 +234,7 @@ Resources:
     Properties:
       DisableApiTermination: 'false'
       InstanceInitiatedShutdownBehavior: stop
-      ImageId: ami-51537029
+      ImageId: !If [UseDefaultWorkerAMI, !FindInMap [RegionAMIMap, !Ref "AWS::Region", Ubuntu1604], !Ref WorkerAMI]
       InstanceType: t2.micro
       KeyName: kubernetes
       Monitoring: 'false'
@@ -364,4 +405,5 @@ Resources:
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref ELBV2TargetGroupKubernetes
-Description: K8s cluster stack from existing infra - created kubernetes-the-hard-way
+
+#Outputs:
